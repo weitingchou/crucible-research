@@ -1,0 +1,22 @@
+{{/* Headless service for stable DNS within the StatefulSet */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "doris.be.fullname" . }}-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    {{- include "doris.be.selectorLabels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "doris.be.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.be.ports.http }}
+    - name: rpc
+      port: {{ .Values.be.ports.rpc }}
+    - name: heartbeat
+      port: {{ .Values.be.ports.heartbeat }}
+    - name: brpc
+      port: {{ .Values.be.ports.brpc }}

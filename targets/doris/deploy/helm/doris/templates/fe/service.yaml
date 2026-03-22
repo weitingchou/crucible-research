@@ -1,0 +1,43 @@
+{{/* Headless service for stable DNS within the StatefulSet */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "doris.fe.fullname" . }}-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    {{- include "doris.fe.selectorLabels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "doris.fe.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.fe.ports.http }}
+    - name: rpc
+      port: {{ .Values.fe.ports.rpc }}
+    - name: query
+      port: {{ .Values.fe.ports.query }}
+    - name: edit
+      port: {{ .Values.fe.ports.edit }}
+---
+{{/* Client-facing service (MySQL query port + HTTP UI) */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "doris.fe.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    {{- include "doris.fe.selectorLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "doris.fe.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.fe.ports.http }}
+      targetPort: {{ .Values.fe.ports.http }}
+    - name: query
+      port: {{ .Values.fe.ports.query }}
+      targetPort: {{ .Values.fe.ports.query }}

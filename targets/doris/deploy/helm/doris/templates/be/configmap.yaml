@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "doris.be.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    {{- include "doris.be.selectorLabels" . | nindent 4 }}
+data:
+  be.conf: |
+    LOG_DIR = {{ .Values.be.config.LOG_DIR }}
+    storage_root_path = {{ .Values.be.config.storage_root_path }}
+    sys_log_level = {{ .Values.be.config.sys_log_level }}
+
+    be_port = {{ .Values.be.ports.rpc }}
+    webserver_port = {{ .Values.be.ports.http }}
+    heartbeat_service_port = {{ .Values.be.ports.heartbeat }}
+    brpc_port = {{ .Values.be.ports.brpc }}
+
+    # Required for pod IP-based cluster membership
+    priority_networks = 0.0.0.0/0

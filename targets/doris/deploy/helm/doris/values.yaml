@@ -1,0 +1,73 @@
+image:
+  repository: apache/doris
+  pullPolicy: IfNotPresent
+
+# ─── Frontend (FE) ───────────────────────────────────────────────────────────
+fe:
+  image:
+    tag: "fe-2.1.10"
+  replicaCount: 1            # single FE for validation; use 3 for production
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  storage:
+    storageClassName: "gp3"
+    size: 10Gi
+
+  ports:
+    http: 8030               # HTTP API / Web UI
+    rpc: 9020                # internal RPC (heartbeat)
+    query: 9030              # MySQL-compatible query port
+    edit: 9010               # metadata edit log
+
+  config:
+    LOG_DIR: "/opt/apache-doris/fe/log"
+    meta_dir: "/opt/apache-doris/fe/doris-meta"
+    sys_log_level: "INFO"
+
+# ─── Backend (BE) ────────────────────────────────────────────────────────────
+be:
+  image:
+    tag: "be-2.1.10"
+  replicaCount: 1            # single BE for validation; use 3 for production
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  storage:
+    storageClassName: "gp3"
+    size: 20Gi
+
+  ports:
+    http: 8040               # webserver / metrics
+    rpc: 9060                # thrift RPC
+    heartbeat: 9050          # FE → BE heartbeat
+    brpc: 8060               # brpc internal
+
+  config:
+    LOG_DIR: "/opt/apache-doris/be/log"
+    storage_root_path: "/opt/apache-doris/be/storage"
+    sys_log_level: "INFO"
+
+# ─── Service ─────────────────────────────────────────────────────────────────
+service:
+  type: ClusterIP            # change to LoadBalancer to expose externally
+
+# ─── Global ──────────────────────────────────────────────────────────────────
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""

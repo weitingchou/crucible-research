@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "doris.fe.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    {{- include "doris.fe.selectorLabels" . | nindent 4 }}
+data:
+  fe.conf: |
+    LOG_DIR = {{ .Values.fe.config.LOG_DIR }}
+    meta_dir = {{ .Values.fe.config.meta_dir }}
+    sys_log_level = {{ .Values.fe.config.sys_log_level }}
+
+    http_port = {{ .Values.fe.ports.http }}
+    rpc_port = {{ .Values.fe.ports.rpc }}
+    query_port = {{ .Values.fe.ports.query }}
+    edit_log_port = {{ .Values.fe.ports.edit }}
+
+    # Required for pod IP-based cluster membership
+    priority_networks = 0.0.0.0/0

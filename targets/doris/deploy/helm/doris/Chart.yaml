@@ -1,0 +1,6 @@
+apiVersion: v2
+name: doris
+description: Apache Doris cluster for Crucible benchmarking (FE + BE)
+type: application
+version: 0.1.0
+appVersion: "2.1.0"

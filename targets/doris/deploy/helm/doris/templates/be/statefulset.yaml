@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "doris.be.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    {{- include "doris.be.selectorLabels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "doris.be.fullname" . }}-headless
+  replicas: {{ .Values.be.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "doris.be.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "doris.be.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "doris.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "doris.be.selectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: be
+          image: "{{ .Values.image.repository }}:{{ .Values.be.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["bash", "-c"]
+          args:
+            - |
+              FE_SVC="{{ include "doris.fe.fullname" . }}-0.{{ include "doris.fe.fullname" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local"
+              # Resolve FE service to IP — init_be.sh greps SHOW FRONTENDS output for this value
+              until MASTER_FE_IP=$(getent hosts "$FE_SVC" | awk '{print $1}' | head -1) && [ -n "$MASTER_FE_IP" ]; do
+                echo "Waiting for FE DNS to resolve..." && sleep 2
+              done
+              export MASTER_FE_IP
+              export CURRENT_BE_IP=$(hostname -i | awk '{print $1}')
+              export CURRENT_BE_PORT={{ .Values.be.ports.heartbeat }}
+              export PRIORITY_NETWORKS=$(echo $CURRENT_BE_IP | awk -F. '{print $1"."$2"."$3".0/24"}')
+              exec bash init_be.sh
+          ports:
+            - name: http
+              containerPort: {{ .Values.be.ports.http }}
+            - name: rpc
+              containerPort: {{ .Values.be.ports.rpc }}
+            - name: heartbeat
+              containerPort: {{ .Values.be.ports.heartbeat }}
+            - name: brpc
+              containerPort: {{ .Values.be.ports.brpc }}
+          volumeMounts:
+            - name: be-storage
+              mountPath: /opt/apache-doris/be/storage
+            - name: be-log
+              mountPath: /opt/apache-doris/be/log
+            - name: be-config
+              mountPath: /etc/doris
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.be.resources | nindent 12 }}
+      volumes:
+        - name: be-log
+          emptyDir: {}
+        - name: be-config
+          configMap:
+            name: {{ include "doris.be.fullname" . }}-config
+  volumeClaimTemplates:
+    - metadata:
+        name: be-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.be.storage.storageClassName }}
+        storageClassName: {{ .Values.be.storage.storageClassName }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.be.storage.size }}

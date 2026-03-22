@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "doris.fe.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    {{- include "doris.fe.selectorLabels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "doris.fe.fullname" . }}-headless
+  replicas: {{ .Values.fe.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "doris.fe.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "doris.fe.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "doris.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "doris.fe.selectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: fe
+          image: "{{ .Values.image.repository }}:{{ .Values.fe.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: ELECT_NUMBER
+              value: "{{ .Values.fe.replicaCount }}"
+            - name: FE_QUERY_PORT
+              value: "{{ .Values.fe.ports.query }}"
+            - name: CONFIGMAP_MOUNT_PATH
+              value: "/etc/doris"
+          command: ["bash", "-c"]
+          args:
+            - |
+              exec bash /opt/apache-doris/fe_entrypoint.sh {{ include "doris.fe.fullname" . }}-headless
+          ports:
+            - name: http
+              containerPort: {{ .Values.fe.ports.http }}
+            - name: rpc
+              containerPort: {{ .Values.fe.ports.rpc }}
+            - name: query
+              containerPort: {{ .Values.fe.ports.query }}
+            - name: edit
+              containerPort: {{ .Values.fe.ports.edit }}
+          volumeMounts:
+            - name: fe-meta
+              mountPath: /opt/apache-doris/fe/doris-meta
+            - name: fe-log
+              mountPath: /opt/apache-doris/fe/log
+            - name: fe-config
+              mountPath: /etc/doris
+          livenessProbe:
+            httpGet:
+              path: /api/bootstrap
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /api/bootstrap
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.fe.resources | nindent 12 }}
+      volumes:
+        - name: fe-log
+          emptyDir: {}
+        - name: fe-config
+          configMap:
+            name: {{ include "doris.fe.fullname" . }}-config
+  volumeClaimTemplates:
+    - metadata:
+        name: fe-meta
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.fe.storage.storageClassName }}
+        storageClassName: {{ .Values.fe.storage.storageClassName }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.fe.storage.size }}
