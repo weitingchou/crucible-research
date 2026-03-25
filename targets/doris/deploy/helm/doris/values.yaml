@@ -64,6 +64,19 @@ be:
 service:
   type: ClusterIP            # change to LoadBalancer to expose externally
 
+# ─── TPC-H Loader ───────────────────────────────────────────────────────────
+tpchLoader:
+  enabled: false             # set to true to run TPC-H data generation & loading
+  scaleFactor: 1             # TPC-H scale factor (1, 10, 100)
+  backoffLimit: 2
+  resources:
+    requests:
+      cpu: "500m"
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
 # ─── Global ──────────────────────────────────────────────────────────────────
 nameOverride: ""
 fullnameOverride: ""

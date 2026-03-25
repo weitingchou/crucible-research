@@ -1,0 +1,42 @@
+{{- if .Values.tpchLoader.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "doris.fullname" . }}-tpch-loader
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tpch-loader
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.tpchLoader.backoffLimit }}
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: tpch-loader
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: loader
+        image: ubuntu:22.04
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -e
+          apt-get update -qq && apt-get install -y -qq git make gcc mysql-client curl python3 > /dev/null 2>&1
+          echo "Dependencies installed"
+          bash /fixtures/tpch_setup.sh
+        volumeMounts:
+        - name: fixtures
+          mountPath: /fixtures
+        resources:
+          {{- toYaml .Values.tpchLoader.resources | nindent 10 }}
+      volumes:
+      - name: fixtures
+        configMap:
+          name: {{ include "doris.fullname" . }}-tpch-fixtures
+          defaultMode: 0755
+{{- end }}
