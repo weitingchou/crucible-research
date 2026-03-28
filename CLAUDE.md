@@ -15,11 +15,17 @@ The repo enforces strict separation between shared analytical tools and engine-s
   - `notebooks/` — Reusable Jupyter notebooks for cross-engine visualization (percentiles, TPS, error rates)
   - `requirements.txt` — Python dependencies (pandas, matplotlib, jupyter, etc.)
 
+- **`infra/`** — Shared infrastructure deployments (not engine-specific)
+  - `helm/prometheus/` — Prometheus Helm chart for SUT metrics collection
+
 - **`targets/{engine}/`** — Fully self-contained per-SUT directories (e.g., `doris/`, `trino/`)
-  - `reports/` — Markdown insight documents (the core deliverable), linked to specific test plans with exported charts
   - `deploy/` — Helm charts for reproducible SUT provisioning
   - `fixtures/` — Data generation configs and DDLs for test datasets
-  - `test_plans/` — Crucible YAML test plan definitions (concurrency, workload SQL, scaling modes)
+  - `research/{goal}/` — Self-contained research investigations (see Research Convention below)
+    - `goal.md` — Human-authored research goal and hypothesis
+    - `plans/` — Crucible test plan YAMLs generated during the investigation
+    - `results.yaml` — Structured log of every experiment run
+    - `report.md` — Final findings report (the core deliverable)
 
 ## Deploying Doris
 
@@ -45,12 +51,90 @@ The chart deploys:
 
 ## Workflow
 
-1. **Deploy & Execute** — Provision SUTs via Helm charts in `targets/{engine}/deploy/`, run Crucible load tests defined in `test_plans/`
-2. **Visualize & Explore** — Ingest raw Crucible telemetry using shared notebooks in `analysis/notebooks/`
-3. **Document & Conclude** — Formalize findings as Markdown reports in `targets/{engine}/reports/` (e.g., `2026-03-doris-join-spill-analysis.md`)
+1. **Deploy** — Provision SUTs via Helm charts in `targets/{engine}/deploy/`
+2. **Research** — Define a goal in `targets/{engine}/research/{goal}/goal.md`, then invoke `/research` to run the autonomous investigation loop (see Research Convention below)
+3. **Visualize & Explore** — Ingest raw Crucible telemetry using shared notebooks in `analysis/notebooks/`
+4. **Review** — Read the generated `report.md` in the research goal folder; provide feedback to iterate
 
 ## Key Design Decisions
 
-- Target isolation: each SUT's reports, deploy configs, fixtures, and test plans are co-located so findings stay coupled to their test parameters
+- Target isolation: each SUT's deploy configs, fixtures, and research investigations are co-located so findings stay coupled to their test parameters
 - Analysis tooling is engine-agnostic because Crucible normalizes telemetry across all targets
 - Helm is the first-priority deployment mechanism for reproducibility
+- Research is goal-driven: each investigation is self-contained in its own folder with goal, plans, results, and report together
+
+## Research Convention
+
+### Overview
+
+Research investigations are driven by goal files authored by humans. Claude autonomously
+plans experiments, submits test runs via the Crucible MCP, collects results, analyzes them,
+and produces a final report. The full protocol is defined in the `/research` skill
+(`.claude/skills/research/SKILL.md`).
+
+### Directory Structure
+
+Each research goal lives in its own folder under `targets/{engine}/research/`:
+
+```
+targets/doris/research/
+  join-spill-analysis/
+    goal.md          # human-authored — context, hypothesis, success criteria
+    plans/           # auto-generated — Crucible test plan YAMLs
+    results.yaml     # auto-generated — structured log of all experiment runs
+    report.md        # auto-generated — final findings report
+```
+
+### Goal File Template
+
+Create `goal.md` with the following sections:
+
+```markdown
+---
+allow_deploy_changes: false   # set true to permit SUT deployment modifications
+                              # (Helm values, resource limits, replica counts)
+auto_approve: false           # set true to skip approval before executing experiments
+---
+
+# {Title}
+
+## Context
+[Background that motivates the investigation]
+
+## Engine
+{engine name, e.g., doris}
+
+## Hypothesis
+[The specific claim to prove or disprove]
+
+## Metrics of Interest
+- {metric 1 — e.g., p99 query latency}
+- {metric 2 — e.g., BE memory utilization}
+
+## Suggested Metrics (optional)
+[Specific PromQL queries the author recommends for the observability block]
+- cluster_qps: `sum(rate(doris_be_query_total{job='doris-be'}[1m]))`
+- avg_memory: `avg(doris_be_mem_usage_bytes{job='doris-be'})`
+
+## Experiment Design
+[Suggested approach — which parameters to vary, how many steps, etc.]
+
+## Constraints
+- {constraint 1}
+- {constraint 2}
+
+## Success Criteria
+[What the final report must answer — bulleted list of specific questions]
+```
+
+### Running a Research Investigation
+
+```
+/research targets/doris/research/join-spill-analysis/goal.md
+```
+
+### Providing Feedback
+
+If the report does not meet expectations, tell Claude the feedback directly.
+Claude will append a `## Feedback` section to `goal.md` with a date stamp,
+then re-run the loop targeting only the gaps identified in the feedback.
