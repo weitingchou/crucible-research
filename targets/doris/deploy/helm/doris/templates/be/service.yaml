@@ -20,3 +20,21 @@ spec:
       port: {{ .Values.be.ports.heartbeat }}
     - name: brpc
       port: {{ .Values.be.ports.brpc }}
+---
+{{/* Client-facing service (HTTP metrics port) */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "doris.be.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "doris.labels" . | nindent 4 }}
+    {{- include "doris.be.selectorLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "doris.be.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.be.ports.http }}
+      targetPort: {{ .Values.be.ports.http }}
