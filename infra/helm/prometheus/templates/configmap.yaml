@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: {{ .Values.doris.scrapeInterval }}
+      evaluation_interval: {{ .Values.doris.scrapeInterval }}
+
+    scrape_configs:
+      - job_name: doris-fe
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - {{ .Values.doris.fe.service }}.{{ .Values.doris.namespace }}.svc.cluster.local:{{ .Values.doris.fe.port }}
+            labels:
+              component: fe
+
+      - job_name: doris-be
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - {{ .Values.doris.be.service }}.{{ .Values.doris.namespace }}.svc.cluster.local:{{ .Values.doris.be.port }}
+            labels:
+              component: be
