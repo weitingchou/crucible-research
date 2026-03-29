@@ -146,12 +146,109 @@ what internal counters are relevant to the hypothesis. For example:
      determined in Phase 1.
   5. Validate via `mcp__crucible__validate_test_plan`.
 
+### 3a-1. Deployment change protocol
+
+When experiments require SUT configuration changes (replica counts, resource
+limits, Doris config flags, etc.), follow this protocol. **Skip this section
+entirely if no deployment changes are needed.**
+
+#### Prerequisites
+
+- Verify `allow_deploy_changes: true` in the goal file. If absent or false,
+  stop and ask the user to update the goal file.
+
+#### Step 1: Record the baseline
+
+Before making any changes, capture the current Helm values so you can restore
+them later:
+
+```bash
+helm get values doris -n crucible-research -o yaml > /tmp/doris-baseline-values.yaml
+```
+
+Store the baseline path. You will need it in the restore step.
+
+#### Step 2: Check cluster capacity
+
+Before scaling out (adding replicas or increasing resource limits), verify the
+cluster can accommodate the new pods:
+
+```bash
+# Check available resources on each node
+kubectl describe nodes | grep -A 6 "Allocated resources"
+
+# Check current pod placement
+kubectl get pods -n crucible-research -o wide
+```
+
+Evaluate whether the target configuration fits. Consider:
+- **CPU requests** — will the new pods' requests fit on existing nodes?
+- **Memory requests** — same check; memory is often the tighter constraint.
+- **Node count** — if no single node can fit a new pod, the scheduler will fail.
+
+If the cluster lacks capacity, **inform the user** with the specific shortfall
+(e.g., "need 2Gi memory but the most available node has 1.5Gi free") and ask
+how to proceed. Do not blindly apply changes that will leave pods in Pending.
+
+#### Step 3: Apply the change
+
+```bash
+helm upgrade doris targets/{engine}/deploy/helm/doris -n crucible-research \
+  --set be.replicaCount=3 \
+  --set be.resources.limits.cpu=4 \
+  # ... other overrides
+```
+
+#### Step 4: Wait for rollout
+
+Wait for all pods to be Running and Ready:
+
+```bash
+kubectl rollout status statefulset/doris-doris-be -n crucible-research --timeout=300s
+kubectl rollout status statefulset/doris-doris-fe -n crucible-research --timeout=300s
+```
+
+#### Step 5: Verify engine health
+
+Pod readiness alone is not enough — the engine must be internally consistent.
+Run engine-specific health checks:
+
+- **Doris:** `SHOW BACKENDS\G` — all backends must show `Alive: true`.
+  If a new backend is not yet registered, wait up to 60 seconds and recheck.
+  Also run a simple query (e.g., `SELECT COUNT(*) FROM tpch.lineitem`) to
+  confirm the data is accessible.
+- **Other engines:** adapt the health check to the engine (e.g., Trino
+  `SELECT * FROM system.runtime.nodes`).
+
+Only proceed to submit test runs after the health check passes.
+
+#### Step 6: Cool-down between spec changes
+
+When switching between deployment configurations (e.g., after testing 3 BE,
+scaling back to 1 BE for the next experiment):
+1. Apply the new Helm values (repeat steps 3–5).
+2. Wait **60 seconds** after the health check passes before submitting the
+   next test run. This allows Prometheus rate() windows to flush stale data
+   from the previous configuration.
+
+#### Step 7: Restore after investigation
+
+After all experiments complete (or if the investigation is aborted), restore
+the original deployment:
+
+```bash
+helm upgrade doris targets/{engine}/deploy/helm/doris -n crucible-research \
+  -f /tmp/doris-baseline-values.yaml
+```
+
+Then repeat steps 4–5 (wait for rollout + health check) to confirm the
+cluster is back to its original state.
+
 ### 3b. Submit runs
 
 - For each experiment (plan × spec combination):
-  1. If the experiment requires deployment changes, verify
-     `allow_deploy_changes: true` in the goal file. Apply changes via Helm
-     upgrade and wait for pods to be ready.
+  1. If the experiment requires deployment changes, follow the deployment
+     change protocol (§3a-1) before submitting.
   2. Submit the test run via `mcp__crucible__submit_test_run`, passing any
      spec overrides. Record the `run_id` immediately.
 
@@ -332,9 +429,9 @@ Generate `report.md` in the research goal directory with this structure:
   plan only when the workload itself changes (different queries, concurrency, duration).
 - **Be honest in the report.** If the data doesn't support the hypothesis, say so.
   A null result is still a result.
-- **Restore deployment changes** after the investigation completes. If you modified
-  Helm values for an experiment, revert to the original configuration unless the
-  goal file says otherwise.
+- **Restore deployment changes** after the investigation completes. Follow
+  §3a-1 Step 7 to revert to the baseline Helm values captured at the start.
+  Always restore unless the goal file explicitly says otherwise.
 - **Auto-approve and Crucible MCP:** When `auto_approve: true` is set in the goal
   file, do NOT prompt the user for approval on ANY `mcp__crucible__*` tool call.
   This includes uploads, validations, submissions, monitoring, and result collection.
