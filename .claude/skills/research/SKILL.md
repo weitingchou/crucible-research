@@ -157,19 +157,54 @@ what internal counters are relevant to the hypothesis. For example:
 
 ### 3c. Monitor
 
-- Poll `mcp__crucible__monitor_test_progress` until status is `COMPLETED` or `FAILED`.
-- If `FAILED`, log the error in results.yaml and decide:
-  - Transient failure (timeout, worker crash) → retry once.
-  - Configuration error → fix the plan and resubmit.
-  - Fundamental issue → log as failed, skip, and continue.
+- After submitting runs, enter a **monitoring loop** that polls
+  `mcp__crucible__monitor_test_progress` for every active run.
+- **Display a status table** to the user on each poll cycle showing all runs
+  and their current state:
+
+  ```
+  | Run (plan_name)        | Concurrency | Status     | Elapsed |
+  |------------------------|-------------|------------|---------|
+  | cpu-concurrency-c1-seq | 1           | COMPLETED  | 5m 01s  |
+  | cpu-concurrency-c2-seq | 2           | EXECUTING  | 3m 22s  |
+  | cpu-concurrency-c4-seq | 4           | PENDING    | —       |
+  ```
+
+- **Poll interval:** every **3 minutes**. Do not poll more frequently.
+- On each poll cycle, check for newly completed or failed runs and trigger
+  result collection immediately (see §3d).
+- Continue the monitoring loop until every run has reached a terminal state
+  (`COMPLETED` or `FAILED`).
 
 ### 3d. Collect
 
-- Retrieve the test run results via the Crucible MCP result tool.
+- **Collect results eagerly:** as soon as a run reaches `COMPLETED`, fetch its
+  results via `mcp__crucible__get_test_results` in the same poll cycle. Do NOT
+  wait for all runs to finish before collecting — fetch each result the moment
+  it becomes available. This ensures:
+  - Partial progress is preserved if later runs fail.
+  - Data is available for early analysis while other runs are still executing.
 - The response JSON contains both **k6 load test metrics** (latency percentiles,
   TPS, error rates) and **Prometheus metrics** (as defined in the plan's
   observability block).
 - Extract the metrics of interest from the response.
+- Log the results to `results.yaml` immediately after extraction (see §3e) —
+  do not batch logging.
+
+### 3d-1. Handle failures
+
+- If a run reaches `FAILED`:
+  1. **Log the failure** in results.yaml with the error detail.
+  2. **Check SUT health** — query the engine (e.g., `SHOW BACKENDS` for Doris,
+     pod status via `kubectl`) to determine if the SUT crashed.
+  3. **If the SUT crashed:** restore it (re-register backends, wait for pods to
+     be ready, verify with a simple query) before proceeding.
+  4. **Retry only the failed run** — do NOT restart the entire experiment
+     sequence. Resubmit the same plan with the same parameters.
+  5. If the retry also fails, log it as a permanent failure and continue with
+     the remaining runs. A repeated crash is itself a valid finding.
+  6. For non-SUT failures (configuration error, invalid plan), fix the issue
+     and resubmit.
 
 ### 3e. Log
 
@@ -300,3 +335,7 @@ Generate `report.md` in the research goal directory with this structure:
 - **Restore deployment changes** after the investigation completes. If you modified
   Helm values for an experiment, revert to the original configuration unless the
   goal file says otherwise.
+- **Auto-approve and Crucible MCP:** When `auto_approve: true` is set in the goal
+  file, do NOT prompt the user for approval on ANY `mcp__crucible__*` tool call.
+  This includes uploads, validations, submissions, monitoring, and result collection.
+  Execute all Crucible operations without interruption.
