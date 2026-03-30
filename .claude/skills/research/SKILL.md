@@ -101,7 +101,17 @@ what internal counters are relevant to the hypothesis. For example:
    - Plan only the follow-up experiments needed to address the feedback.
 4. **Read the engine's deploy config and fixtures** to understand the current SUT
    state (version, resource limits, loaded datasets, connection details).
-5. **Determine the Prometheus metrics** to include in test plans:
+5. **Study the engine's data distribution model** (relevant when experiments
+   involve scaling nodes in or out):
+   - How does the engine partition and distribute data across nodes?
+     (e.g., hash-partitioned tablets, consistent hashing, replicated shards)
+   - Does the engine automatically rebalance data when nodes are added or removed?
+     If so, what triggers it, how long does it take, and how can you monitor progress?
+   - Are there manual commands to trigger or verify rebalancing?
+   - What does "balanced" look like? (e.g., equal partition counts, even data size)
+   - Record these findings — you will need them in the deployment change protocol
+     (§3a-1 Step 6) to ensure data is evenly distributed before running experiments.
+6. **Determine the Prometheus metrics** to include in test plans:
    - Start with any `suggested_metrics` from the goal file.
    - Add metrics that are relevant to the hypothesis based on engine knowledge.
    - Read engine documentation or existing deploy configs to find available
@@ -122,7 +132,16 @@ what internal counters are relevant to the hypothesis. For example:
    - **Spec axis** — which engine configurations to test (memory, replicas, flags).
      These are passed at run submission time and reuse the same uploaded plan.
    - Map out the full matrix: `workloads × specs = total runs`.
-3. **For each experiment, define:**
+3. **If experiments involve scaling nodes in or out**, plan how to verify
+   data rebalancing based on the findings from Phase 1 Step 5:
+   - Identify the specific command or query to check rebalancing progress
+     (e.g., comparing per-node partition counts, querying a system balance
+     table, calling a rebalance status API).
+   - Identify the specific command or query to confirm completion (what does
+     "done" look like — equal partition counts? a status field changing?).
+   - Document both in the experiment plan so they are ready for use in
+     §3a-1 Step 6 during execution.
+4. **For each experiment, define:**
    - A short description (what it tests and why)
    - Which test plan it uses (new or existing)
    - Which spec overrides to pass at submission (if any)
@@ -220,18 +239,53 @@ Run engine-specific health checks:
 - **Other engines:** adapt the health check to the engine (e.g., Trino
   `SELECT * FROM system.runtime.nodes`).
 
-Only proceed to submit test runs after the health check passes.
+Only proceed after the health check passes.
 
-#### Step 6: Cool-down between spec changes
+#### Step 6: Wait for data rebalancing
+
+After scaling out (adding nodes/replicas), many distributed databases
+automatically redistribute data across the new topology. Running experiments
+before rebalancing completes will produce skewed results — some nodes will be
+hot (serving all data) while others sit idle.
+
+**Skip this step** if the engine has no local data distribution (e.g., stateless
+query engines that read from external storage), as determined in Phase 1 Step 5.
+
+1. **Trigger or confirm rebalancing** using the mechanism identified in
+   Phase 1 Step 5. Common patterns:
+   - **Automatic migration** — the engine detects imbalance and migrates
+     partitions in the background. Just wait.
+   - **Manual rebalance command** — some engines require an explicit trigger.
+   - **No automatic rebalancing** — data stays on original nodes; you may
+     need to reload data or run a compaction/repair cycle.
+
+2. **Monitor rebalancing to completion.** Use the progress-checking method
+   identified in Phase 2 (see below). Do NOT use a fixed timer — poll until
+   the engine reports that rebalancing is done. Rebalancing may take seconds
+   for small datasets or hours for large ones.
+
+3. **Verify balanced distribution.** After rebalancing reports completion,
+   confirm that no node has more than ~20% deviation from the average
+   partition count.
+
+4. **After scaling in** (removing replicas), verify the engine has migrated
+   data off the removed nodes and no partitions are under-replicated.
+
+5. **Log the final distribution** in results.yaml under the experiment's
+   `notes` field (e.g., "tablets: BE-0=28, BE-1=29, BE-2=29").
+
+Only proceed to submit test runs after rebalancing is verified complete.
+
+#### Step 7: Cool-down between spec changes
 
 When switching between deployment configurations (e.g., after testing 3 BE,
 scaling back to 1 BE for the next experiment):
-1. Apply the new Helm values (repeat steps 3–5).
-2. Wait **60 seconds** after the health check passes before submitting the
+1. Apply the new Helm values (repeat steps 3–6).
+2. Wait **60 seconds** after rebalancing completes before submitting the
    next test run. This allows Prometheus rate() windows to flush stale data
    from the previous configuration.
 
-#### Step 7: Restore after investigation
+#### Step 8: Restore after investigation
 
 After all experiments complete (or if the investigation is aborted), restore
 the original deployment:
@@ -430,7 +484,7 @@ Generate `report.md` in the research goal directory with this structure:
 - **Be honest in the report.** If the data doesn't support the hypothesis, say so.
   A null result is still a result.
 - **Restore deployment changes** after the investigation completes. Follow
-  §3a-1 Step 7 to revert to the baseline Helm values captured at the start.
+  §3a-1 Step 8 to revert to the baseline Helm values captured at the start.
   Always restore unless the goal file explicitly says otherwise.
 - **Auto-approve and Crucible MCP:** When `auto_approve: true` is set in the goal
   file, do NOT prompt the user for approval on ANY `mcp__crucible__*` tool call.
