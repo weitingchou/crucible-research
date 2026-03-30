@@ -503,3 +503,7 @@ list all configurations in a table:
   file, do NOT prompt the user for approval on ANY `mcp__crucible__*` tool call.
   This includes uploads, validations, submissions, monitoring, and result collection.
   Execute all Crucible operations without interruption.
+- **Auto-approve and deployment changes:** When both `auto_approve: true` and
+  `allow_deploy_changes: true` are set, do NOT prompt the user for approval on
+  cluster topology changes (scaling in/out, helm upgrades, resource adjustments).
+  Execute the deployment change protocol (§3a-1) autonomously.
