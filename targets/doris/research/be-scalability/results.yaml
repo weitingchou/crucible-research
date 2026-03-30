@@ -1,0 +1,67 @@
+---
+study: be-scalability
+engine: doris
+workload_id: tpch-sf1-be-scalability
+executed_at: "2026-03-30T15:10:00Z"
+notes: >
+  Tested horizontal scalability by running TPC-H SF1 at 8 VUs against 1, 2, and 4 BE
+  replicas. Each BE has 2 CPU limit / 4Gi memory limit on c7i-flex.2xlarge nodes.
+  Used intra_node scaling mode with cluster_spec reporting 1 node (k6 connects to FE,
+  which distributes to BEs). Tablet rebalancing verified between each config change.
+runs:
+  - concurrency: 8
+    be_replicas: 1
+    plan_name: "be-scalability-1x-r3"
+    run_id: "be-scalability-1x-r3_20260330-1510_b3b930b9"
+    status: COMPLETED
+    parameters:
+      concurrency: 8
+      hold_for: "300s"
+      ramp_up: "0s"
+      queries: "TPC-H Q1,Q3,Q5,Q6,Q9,Q10,Q12,Q13,Q14,Q19"
+    results:
+      prometheus:
+        cluster_qps: 12.7
+        query_latency_p95_ms: 1080
+        query_latency_p99_ms: 1240
+        be_active_queries: 8
+        be_load_average_1m: 1.7
+    notes: "1x baseline. Single BE saturated under 8 VU load. Tablets: BE-0=146."
+
+  - concurrency: 8
+    be_replicas: 2
+    plan_name: "be-scalability-2x-r3"
+    run_id: "be-scalability-2x-r3_20260330-1537_59dc6193"
+    status: COMPLETED
+    parameters:
+      concurrency: 8
+      hold_for: "300s"
+      ramp_up: "0s"
+      queries: "TPC-H Q1,Q3,Q5,Q6,Q9,Q10,Q12,Q13,Q14,Q19"
+    results:
+      prometheus:
+        cluster_qps: 14.0
+        query_latency_p95_ms: 955
+        query_latency_p99_ms: 1105
+        be_active_queries: 6
+        be_load_average_1m: 0.74
+    notes: "2x config. Tablets: BE-0=78, BE-1=68. QPS improved only ~10%."
+
+  - concurrency: 8
+    be_replicas: 4
+    plan_name: "be-scalability-4x"
+    run_id: "be-scalability-4x_20260330-1549_f431b12e"
+    status: COMPLETED
+    parameters:
+      concurrency: 8
+      hold_for: "300s"
+      ramp_up: "0s"
+      queries: "TPC-H Q1,Q3,Q5,Q6,Q9,Q10,Q12,Q13,Q14,Q19"
+    results:
+      prometheus:
+        cluster_qps: 22.2
+        query_latency_p95_ms: 600
+        query_latency_p99_ms: 705
+        be_active_queries: 2
+        be_load_average_1m: 1.1
+    notes: "4x config. Tablets: BE-0=62, BE-1=42, BE-2=48, BE-3=38. Significant QPS and latency improvement."
