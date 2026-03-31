@@ -59,16 +59,11 @@ xychart-beta
 
 ```mermaid
 xychart-beta
-    title "Query Latency by Index Variant (ms, lower is better)"
+    title "Median Query Latency (ms, lower is better)"
     x-axis ["baseline", "bloom", "inverted", "unique-mow", "rowstore"]
-    y-axis "Latency (ms)" 0 --> 100
-    bar "Median" [6.4, 6.7, 6.6, 7.1, 3.3]
-    bar "Avg" [22.6, 23.0, 22.8, 25.8, 16.5]
-    bar "P95" [78.9, 78.6, 78.8, 81.1, 83.3]
-    bar "P99" [89.3, 90.5, 91.3, 93.4, 90.9]
+    y-axis "Latency (ms)" 0 --> 10
+    bar [6.4, 6.7, 6.6, 7.1, 3.3]
 ```
-
-> Bars left-to-right within each group: 🟩 **Median** · 🟦 **Avg** · 🟧 **P95** · 🟥 **P99**
 
 **Key observations:**
 - The rowstore median latency (3.3ms) is **2x faster** than the baseline median (6.4ms),
