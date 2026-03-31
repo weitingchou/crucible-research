@@ -19,10 +19,11 @@ Inspired by [autoresearch](https://github.com/SqueezeAILab/AutoResearch) — the
 ├── targets/                        # Isolated folders per System Under Test (SUT)
 │   └── doris/
 │       ├── deploy/                 # Helm charts for reproducible SUT provisioning
-│       ├── fixtures/               # Data generation configs, DDLs, workload SQL
+│       ├── fixtures/               # Shared data generation configs, DDLs, workload SQL
 │       └── research/               # Goal-driven research investigations
 │           └── {goal}/
 │               ├── goal.md         # Human-authored hypothesis and experiment design
+│               ├── fixtures/       # Research-specific scripts (only for this topic)
 │               ├── plans/          # Auto-generated Crucible test plan YAMLs
 │               ├── results.yaml    # Structured log of every experiment run
 │               └── report.md       # Auto-generated findings report

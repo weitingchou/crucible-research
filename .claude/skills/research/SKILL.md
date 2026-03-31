@@ -154,7 +154,16 @@ what internal counters are relevant to the hypothesis. For example:
 
 ## Phase 3: Execute
 
-### 3a. Prepare workloads and plans
+### 3a. Prepare fixtures, workloads, and plans
+
+- **Create research-specific fixtures** if the experiment requires custom DDLs,
+  data loading scripts, or workload SQL that are not already in the shared
+  `targets/{engine}/fixtures/` directory:
+  1. Create a `fixtures/` subfolder in the research goal directory.
+  2. Place research-specific scripts there (e.g., custom table DDLs with
+     specific index configurations, specialized workload SQL).
+  3. Reuse shared fixtures from `targets/{engine}/fixtures/` where possible —
+     do not duplicate shared assets into the research folder.
 
 - For each distinct workload in the experiment plan:
   1. Upload the workload SQL via `mcp__crucible__upload_workload_sql`.

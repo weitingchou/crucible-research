@@ -20,9 +20,10 @@ The repo enforces strict separation between shared analytical tools and engine-s
 
 - **`targets/{engine}/`** — Fully self-contained per-SUT directories (e.g., `doris/`, `trino/`)
   - `deploy/` — Helm charts for reproducible SUT provisioning
-  - `fixtures/` — Data generation configs and DDLs for test datasets
+  - `fixtures/` — **Shared** data generation configs, DDLs, and workload SQL reusable across research topics
   - `research/{goal}/` — Self-contained research investigations (see Research Convention below)
     - `goal.md` — Human-authored research goal and hypothesis
+    - `fixtures/` — **Research-specific** scripts, DDLs, and workloads used only by this investigation
     - `plans/` — Crucible test plan YAMLs generated during the investigation
     - `results.yaml` — Structured log of every experiment run
     - `report.md` — Final findings report (the core deliverable)
@@ -77,13 +78,37 @@ and produces a final report. The full protocol is defined in the `/research` ski
 Each research goal lives in its own folder under `targets/{engine}/research/`:
 
 ```
-targets/doris/research/
-  join-spill-analysis/
-    goal.md          # human-authored — context, hypothesis, success criteria
-    plans/           # auto-generated — Crucible test plan YAMLs
-    results.yaml     # auto-generated — structured log of all experiment runs
-    report.md        # auto-generated — final findings report
+targets/doris/
+  fixtures/                    # shared across research topics
+    tpch_ddl.sql               #   TPC-H schema DDL
+    tpch_setup.sh              #   data generation and loading
+    tpch_queries.sql           #   reference TPC-H queries
+    tpch-sf1-workload.sql      #   Crucible workload format (all 22 queries)
+  research/
+    join-spill-analysis/
+      goal.md                  # human-authored — context, hypothesis, success criteria
+      fixtures/                # research-specific scripts (only used by this topic)
+        create_variants.sql    #   example: custom table DDLs for this experiment
+        point_query.sql        #   example: custom workload for this experiment
+      plans/                   # auto-generated — Crucible test plan YAMLs
+      results.yaml             # auto-generated — structured log of all experiment runs
+      report.md                # auto-generated — final findings report
 ```
+
+### Fixture Convention
+
+Fixtures (DDLs, data loaders, workload SQL) follow a two-tier layout:
+
+- **Shared fixtures** (`targets/{engine}/fixtures/`) — Reusable assets used by
+  multiple research topics. Examples: TPC-H schema DDL, data loading scripts,
+  standard workload SQL files.
+- **Research-specific fixtures** (`targets/{engine}/research/{goal}/fixtures/`) —
+  Scripts and SQL used only by a single investigation. Examples: custom table
+  variants with specific index configurations, specialized point query workloads.
+
+**Rule:** if a fixture is only used by one research topic, it belongs in that
+topic's `fixtures/` subfolder. If it's reusable across topics, it goes in the
+shared `fixtures/` directory.
 
 ### Goal File Template
 
