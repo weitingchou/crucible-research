@@ -28,6 +28,23 @@ spec:
                   matchLabels:
                     {{- include "doris.fe.selectorLabels" . | nindent 20 }}
                 topologyKey: kubernetes.io/hostname
+      initContainers:
+        - name: init-fe-conf
+          image: "{{ .Values.image.repository }}:{{ .Values.fe.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["bash", "-c"]
+          args:
+            - |
+              cp -a /opt/apache-doris/fe/conf/* /tmp/fe-conf/
+              # Overlay ConfigMap values if present
+              if [ -f /etc/doris/fe.conf ]; then
+                cp /etc/doris/fe.conf /tmp/fe-conf/fe.conf
+              fi
+          volumeMounts:
+            - name: fe-conf-rw
+              mountPath: /tmp/fe-conf
+            - name: fe-config
+              mountPath: /etc/doris
       containers:
         - name: fe
           image: "{{ .Values.image.repository }}:{{ .Values.fe.image.tag }}"
@@ -57,6 +74,8 @@ spec:
               mountPath: /opt/apache-doris/fe/doris-meta
             - name: fe-log
               mountPath: /opt/apache-doris/fe/log
+            - name: fe-conf-rw
+              mountPath: /opt/apache-doris/fe/conf
             - name: fe-config
               mountPath: /etc/doris
           livenessProbe:
@@ -76,6 +95,8 @@ spec:
             {{- toYaml .Values.fe.resources | nindent 12 }}
       volumes:
         - name: fe-log
+          emptyDir: {}
+        - name: fe-conf-rw
           emptyDir: {}
         - name: fe-config
           configMap:
