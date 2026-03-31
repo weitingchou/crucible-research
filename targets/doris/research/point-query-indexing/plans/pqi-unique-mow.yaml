@@ -1,0 +1,42 @@
+test_metadata:
+  run_label: point-query-indexing
+test_environment:
+  env_type: long-lived
+  target_db: tpch
+  component_spec:
+    type: doris
+    cluster_info:
+      host: doris-doris-fe.crucible-research.svc.cluster.local:9030
+      username: root
+      password: ''
+  observability:
+    prometheus_sources:
+    - name: engine
+      url: http://prometheus.crucible-research.svc.cluster.local:9090
+      metrics:
+      - name: fe_qps
+        query: doris_fe_qps{job="doris-fe"}
+      - name: fe_query_latency_p95
+        query: doris_fe_query_latency_ms{job="doris-fe",quantile="0.95"}
+      - name: fe_query_latency_p99
+        query: doris_fe_query_latency_ms{job="doris-fe",quantile="0.99"}
+      - name: be_cache_hit_ratio
+        query: doris_be_cache_hit_ratio{job="doris-be"}
+      - name: be_active_queries
+        query: doris_be_query_ctx_cnt{job="doris-be"}
+      - name: be_cpu_rate
+        query: rate(process_cpu_seconds_total{job="doris-be"}[1m])
+      - name: be_mem_rss_bytes
+        query: process_resident_memory_bytes{job="doris-be"}
+      - name: be_mem_tracker_bytes
+        query: doris_be_all_memtrackers_bytes{job="doris-be"}
+      resolution: 15
+      max_data_points: 500
+execution:
+  executor: k6
+  scaling_mode: intra_node
+  concurrency: 8
+  ramp_up: 0s
+  hold_for: 300s
+  workload:
+  - workload_id: pqi-unique-mow

@@ -1,0 +1,179 @@
+experiments:
+  # --- Round 3: Sequential isolated runs with CPU/memory metrics ---
+  - run_id: "pqi-baseline-r3_20260331-0411_6315a9b1"
+    run_label: "point-query-indexing"
+    timestamp: "2026-03-31T04:11:38Z"
+    description: "Isolated sequential run — DUPLICATE key, prefix index only (baseline)"
+    plan_file: "plans/pqi-baseline.yaml"
+    parameters:
+      concurrency: 8
+      queries: 99 random point queries (pq_1..pq_99)
+      hold_for: "300s"
+      table_variant: orders_baseline
+      table_model: DUPLICATE
+      index_type: prefix_only
+    status: completed
+    results:
+      k6:
+        iteration_count: 106336
+        effective_qps: 354.5
+        iteration_duration_ms:
+          avg: 22.6
+          med: 6.4
+          p90: 77.5
+          p95: 78.9
+          p99: 89.3
+          min: 4.7
+          max: 111.2
+      resource:
+        host_cpu_cores: 0.50
+        cpu_per_kqps: 1.40
+        jemalloc_rss_mb: 1195.5
+        wg_cpu_cores: 0.0325
+      storage:
+        table_size_mb: 48.297
+
+  - run_id: "pqi-bloom-r3_20260331-0418_2db36770"
+    run_label: "point-query-indexing"
+    timestamp: "2026-03-31T04:18:21Z"
+    description: "Isolated sequential run — DUPLICATE key with bloom filter index"
+    plan_file: "plans/pqi-bloom.yaml"
+    parameters:
+      concurrency: 8
+      queries: 99 random point queries (pq_1..pq_99)
+      hold_for: "300s"
+      table_variant: orders_bloom
+      table_model: DUPLICATE
+      index_type: bloom_filter
+    status: completed
+    results:
+      k6:
+        iteration_count: 104349
+        effective_qps: 347.8
+        iteration_duration_ms:
+          avg: 23.0
+          med: 6.7
+          p90: 77.1
+          p95: 78.6
+          p99: 90.5
+          min: 4.8
+          max: 225.4
+      resource:
+        host_cpu_cores: 0.62
+        cpu_per_kqps: 1.80
+        jemalloc_rss_mb: 1246.7
+        wg_cpu_cores: 0.0333
+      storage:
+        table_size_mb: 49.733
+        overhead_vs_baseline_pct: 3.0
+    notes: "Bloom filter adds CPU overhead (+24%) for evaluating the filter with no latency benefit."
+
+  - run_id: "pqi-inverted-r3_20260331-0424_357a1761"
+    run_label: "point-query-indexing"
+    timestamp: "2026-03-31T04:24:18Z"
+    description: "Isolated sequential run — DUPLICATE key with inverted index"
+    plan_file: "plans/pqi-inverted.yaml"
+    parameters:
+      concurrency: 8
+      queries: 99 random point queries (pq_1..pq_99)
+      hold_for: "300s"
+      table_variant: orders_inverted
+      table_model: DUPLICATE
+      index_type: inverted
+    status: completed
+    results:
+      k6:
+        iteration_count: 105154
+        effective_qps: 350.5
+        iteration_duration_ms:
+          avg: 22.8
+          med: 6.6
+          p90: 77.3
+          p95: 78.8
+          p99: 91.3
+          min: 4.7
+          max: 165.3
+      resource:
+        host_cpu_cores: 0.58
+        cpu_per_kqps: 1.65
+        jemalloc_rss_mb: 1280.4
+        wg_cpu_cores: 0.0333
+      storage:
+        table_size_mb: 51.997
+        overhead_vs_baseline_pct: 7.7
+    notes: "Inverted index adds CPU overhead (+16%) with no latency benefit on sort key column."
+
+  - run_id: "pqi-unique-mow-r3_20260331-0430_a3b8174e"
+    run_label: "point-query-indexing"
+    timestamp: "2026-03-31T04:30:12Z"
+    description: "Isolated sequential run — UNIQUE key (merge-on-write), prefix index"
+    plan_file: "plans/pqi-unique-mow.yaml"
+    parameters:
+      concurrency: 8
+      queries: 99 random point queries (pq_1..pq_99)
+      hold_for: "300s"
+      table_variant: orders_unique_mow
+      table_model: UNIQUE_MOW
+      index_type: prefix_only
+    status: completed
+    results:
+      k6:
+        iteration_count: 93120
+        effective_qps: 310.4
+        iteration_duration_ms:
+          avg: 25.8
+          med: 7.1
+          p90: 79.7
+          p95: 81.1
+          p99: 93.4
+          min: 5.1
+          max: 110.8
+      resource:
+        host_cpu_cores: 0.55
+        cpu_per_kqps: 1.78
+        jemalloc_rss_mb: 1316.0
+        wg_cpu_cores: 0.0479
+      storage:
+        table_size_mb: 54.328
+        overhead_vs_baseline_pct: 12.5
+    notes: >
+      Slowest variant. Delete bitmap checks add overhead: -12% QPS, +14% avg latency,
+      +47% workload-group CPU vs baseline. Pure cost on a read-only dataset.
+
+  - run_id: "pqi-unique-mow-rowstore-r3_20260331-0436_99cd7c7d"
+    run_label: "point-query-indexing"
+    timestamp: "2026-03-31T04:36:12Z"
+    description: "Isolated sequential run — UNIQUE key (merge-on-write) with row store"
+    plan_file: "plans/pqi-unique-mow-rowstore.yaml"
+    parameters:
+      concurrency: 8
+      queries: 99 random point queries (pq_1..pq_99)
+      hold_for: "300s"
+      table_variant: orders_unique_mow_rowstore
+      table_model: UNIQUE_MOW
+      index_type: prefix_plus_rowstore
+    status: completed
+    results:
+      k6:
+        iteration_count: 145510
+        effective_qps: 485.0
+        iteration_duration_ms:
+          avg: 16.5
+          med: 3.3
+          p90: 81.8
+          p95: 83.3
+          p99: 90.9
+          min: 2.2
+          max: 558.1
+      resource:
+        host_cpu_cores: 0.12
+        cpu_per_kqps: 0.24
+        jemalloc_rss_mb: 1268.2
+        wg_cpu_cores: 0.0000
+      storage:
+        table_size_mb: 160.251
+        overhead_vs_baseline_pct: 231.8
+    notes: >
+      Clear winner on all dimensions except storage. 1.37x QPS vs baseline, 27% lower avg
+      latency, and 76% less host CPU. Short-circuit read bypasses columnar scan and workload
+      group CPU accounting. WG CPU = 0 confirms the dedicated fast-path. Trade-off: 3.3x storage.

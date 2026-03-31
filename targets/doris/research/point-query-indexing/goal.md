@@ -40,6 +40,8 @@ higher storage overhead.
 - Point query throughput (QPS)
 - Storage size per table variant (to quantify index overhead)
 - Cache hit rates (to understand if results are skewed by caching)
+- BE CPU utilization per variant (to quantify compute cost per query)
+- BE memory utilization per variant (to quantify memory pressure)
 
 ## Suggested Metrics
 - cluster_qps: `doris_fe_qps{job="doris-fe"}`
@@ -47,6 +49,9 @@ higher storage overhead.
 - query_latency_p99: `doris_fe_query_latency_ms{job="doris-fe",quantile="0.99"}`
 - be_cache_hit_ratio: `doris_be_cache_hit_ratio{job="doris-be"}`
 - be_active_queries: `doris_be_query_ctx_cnt{job="doris-be"}`
+- be_cpu_usage: `rate(process_cpu_seconds_total{job="doris-be"}[1m])`
+- be_mem_bytes: `process_resident_memory_bytes{job="doris-be"}`
+- be_mem_tracker: `doris_be_all_memtrackers_bytes{job="doris-be"}`
 
 ## Experiment Design
 Create five variants of the `orders` table (1.5M rows from TPC-H SF1), each with a
@@ -93,5 +98,7 @@ Run at **concurrency 8** for **5 minutes** per variant.
 - Ranking of index strategies by point query performance
 - Quantified speedup of each index type over the no-index baseline
 - Storage overhead of each index type (table size in bytes)
+- CPU and memory cost per variant — is the fastest index also the most resource-hungry?
+- Efficiency metric: QPS-per-CPU-core and latency-per-MB-memory for each variant
 - Whether the short-circuit read + row store optimization lives up to its promise
-- Recommendation for which index strategy to use for point query workloads
+- Recommendation that weighs latency gains against resource (CPU, memory, storage) costs
